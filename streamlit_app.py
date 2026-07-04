@@ -117,6 +117,27 @@ def get_db():
     return DatabaseManager()
 
 
+@st.cache_resource
+def init_database():
+    """
+    Ensure prediction_history / model_results tables exist.
+
+    On a fresh deployment (e.g. Streamlit Community Cloud), main.py never
+    runs, so nothing has created these tables yet. create_tables() is
+    idempotent (CREATE TABLE IF NOT EXISTS), so it's safe to call on every
+    app startup. st.cache_resource makes sure it only actually runs once
+    per app session instead of on every rerun.
+    """
+    db = DatabaseManager()
+    db.create_tables()
+    db.close()
+    return True
+
+
+# Run once, before any page tries to read from the database.
+init_database()
+
+
 # ======================================================
 # Sidebar Navigation
 # ======================================================
@@ -137,7 +158,7 @@ page = st.sidebar.radio(
 )
 
 st.sidebar.divider()
-st.sidebar.caption("Built with Streamlit · Scikit-learn · TensorFlow · SHAP")
+st.sidebar.caption("Built with Streamlit · scikit-learn · TensorFlow · SHAP")
 
 
 # ======================================================
