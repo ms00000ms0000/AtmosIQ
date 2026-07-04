@@ -9,25 +9,34 @@ Methodology notes (why this file looks the way it does):
    (e.g. 'snow' is only 26 rows vs 'rain'/'sun' at ~640 each). A single
    80/20 train-test split on data this size is noisy — whichever 292 rows
    land in the test set has an outsized effect on the reported score. So
-   classical models are compared using Stratified K-Fold Cross-Validation
-   (5 folds), and the model with the best *mean* performance across folds
-   is trusted, not the model that got lucky on one split.
+   every classical model is compared using Stratified K-Fold Cross-
+   Validation (5 folds), and the model with the best *mean* performance
+   across folds is trusted, not the model that got lucky on one split.
 
 2. Macro-F1 (unweighted average of per-class F1) is used as the primary
    selection metric instead of raw accuracy. With 'rain' and 'sun' making
    up ~88% of the data, a model can hit high accuracy while completely
    ignoring 'snow' or 'drizzle' — macro-F1 penalizes that.
 
-3. RandomForestClassifier uses class_weight='balanced', and
-   GradientBoostingClassifier is fit with balanced sample_weight, so both
-   ensembles are pushed to pay attention to the minority classes rather
-   than defaulting to the majority classes.
+3. Five models are compared on purpose, not just one "obvious winner":
+     - Random Forest        (bagged trees, class_weight='balanced')
+     - Extra Trees          (more randomized bagged trees, often
+                              generalizes better than RF on small/noisy
+                              tabular data, class_weight='balanced')
+     - Gradient Boosting    (classic boosting, balanced via sample_weight)
+     - HistGradient Boosting(sklearn's modern, faster boosting
+                              implementation, class_weight='balanced')
+     - Neural Network       (kept as a documented baseline — see note below)
+   The point isn't to always crown the same "favorite" model; it's to
+   demonstrate an honest, reproducible comparison and let the numbers
+   decide. Whichever model wins the mean CV macro-F1 is promoted.
 
-4. The Neural Network is kept in the comparison as a documented baseline —
-   on a dataset this size, tree ensembles are expected to outperform deep
-   learning (this is a well-known result for small/medium tabular data,
-   not a bug), so its purpose here is to demonstrate that conclusion
-   empirically rather than to win.
+4. The Neural Network is NOT put through 5-fold CV (retraining a network
+   5x per run is expensive) and is not eligible to "win" the comparison.
+   On a dataset this size, tree ensembles are expected to outperform deep
+   learning — this is a well-known result for small/medium tabular data,
+   not a bug — so its purpose here is to demonstrate that conclusion
+   empirically as a documented baseline, not to compete for production.
 """
 
 import time
@@ -42,7 +51,9 @@ from sklearn.utils.class_weight import compute_sample_weight
 
 from sklearn.ensemble import (
     RandomForestClassifier,
+    ExtraTreesClassifier,
     GradientBoostingClassifier,
+    HistGradientBoostingClassifier,
 )
 
 from sklearn.metrics import (
@@ -186,9 +197,9 @@ class ModelTrainer:
         self.db.save_model_result(name, accuracy, precision, recall, f1)
 
         # Model selection is based on mean CV macro-F1, not a single
-        # held-out accuracy number — this is the fix for a small,
-        # imbalanced dataset where a single split is noisy and accuracy
-        # alone hides poor performance on minority classes.
+        # held-out accuracy number — this is robust to a small, imbalanced
+        # dataset where a single split is noisy and accuracy alone hides
+        # poor performance on minority classes.
         if cv_f1_macro_mean > self.best_score:
             self.best_score = cv_f1_macro_mean
             self.best_model = model
@@ -211,6 +222,25 @@ class ModelTrainer:
         self.evaluate_sklearn(model, "Random Forest", X_train, X_test, y_train, y_test)
 
     # --------------------------------------------------
+    # Extra Trees
+    # --------------------------------------------------
+    def train_extra_trees(self, X_train, X_test, y_train, y_test):
+        """
+        Extremely Randomized Trees: like Random Forest, but both the
+        feature subset AND the split threshold at each node are chosen
+        randomly (RF only randomizes the feature subset). The extra
+        randomness increases bias slightly but often reduces variance
+        more, which tends to help on small, noisy tabular datasets like
+        this one.
+        """
+        model = ExtraTreesClassifier(
+            n_estimators=400,
+            random_state=RANDOM_STATE,
+            class_weight="balanced",
+        )
+        self.evaluate_sklearn(model, "Extra Trees", X_train, X_test, y_train, y_test)
+
+    # --------------------------------------------------
     # Gradient Boosting
     # --------------------------------------------------
     def train_gradient_boosting(self, X_train, X_test, y_train, y_test):
@@ -223,6 +253,25 @@ class ModelTrainer:
         self.evaluate_sklearn(
             model, "Gradient Boosting", X_train, X_test, y_train, y_test,
             fit_params={"sample_weight": sample_weight},
+        )
+
+    # --------------------------------------------------
+    # Histogram-Based Gradient Boosting
+    # --------------------------------------------------
+    def train_hist_gradient_boosting(self, X_train, X_test, y_train, y_test):
+        """
+        Scikit-learn's modern, histogram-binned boosting implementation
+        (the same family of algorithm as LightGBM). It's typically faster
+        and often stronger than the classic GradientBoostingClassifier,
+        and it supports class_weight='balanced' natively.
+        """
+        model = HistGradientBoostingClassifier(
+            random_state=RANDOM_STATE,
+            class_weight="balanced",
+            max_iter=300,
+        )
+        self.evaluate_sklearn(
+            model, "Hist Gradient Boosting", X_train, X_test, y_train, y_test
         )
 
     # --------------------------------------------------
@@ -321,7 +370,9 @@ class ModelTrainer:
 
         # Tree-based models don't need scaled features.
         self.train_random_forest(X_train, X_test, y_train, y_test)
+        self.train_extra_trees(X_train, X_test, y_train, y_test)
         self.train_gradient_boosting(X_train, X_test, y_train, y_test)
+        self.train_hist_gradient_boosting(X_train, X_test, y_train, y_test)
 
         # Neural network trains on scaled features.
         self.train_tensorflow(X_train_scaled, X_test_scaled, y_train, y_test)
