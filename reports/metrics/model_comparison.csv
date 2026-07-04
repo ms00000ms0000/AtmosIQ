@@ -1,4 +1,4 @@
-Model,Accuracy,Precision,Recall,F1 Score,Training Time (s)
-Random Forest,0.8532,0.8609,0.8532,0.8279,1.915
-Gradient Boosting,0.8532,0.8468,0.8532,0.8321,2.312
-Neural Network,0.7782,0.7465,0.7782,0.7514,108.471
+Model,CV Accuracy (mean),CV Accuracy (std),CV F1-Macro (mean),CV F1-Macro (std),Test Accuracy,Test Precision,Test Recall,Test F1 (weighted),Test F1 (macro),Training Time (s)
+Random Forest,0.8193,0.0193,0.5797,0.042,0.7986,0.7955,0.7986,0.7949,0.4863,1.202
+Gradient Boosting,0.8373,0.0098,0.5357,0.019,0.785,0.8387,0.785,0.8085,0.573,2.253
+Neural Network,,,,,0.785,0.7613,0.785,0.7577,0.4091,108.623
