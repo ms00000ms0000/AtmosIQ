@@ -1,0 +1,4 @@
+Model,Accuracy,Precision,Recall,F1 Score,Training Time (s)
+Random Forest,0.8532,0.8609,0.8532,0.8279,1.915
+Gradient Boosting,0.8532,0.8468,0.8532,0.8321,2.312
+Neural Network,0.7782,0.7465,0.7782,0.7514,108.471
