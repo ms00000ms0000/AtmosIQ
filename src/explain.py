@@ -3,9 +3,13 @@ explain.py
 ----------
 Model explainability for AtmosIQ using SHAP.
 
-Supports the tree-based classical models (Random Forest, Gradient
-Boosting) with the fast TreeExplainer, and falls back to a
-model-agnostic KernelExplainer for the TensorFlow Neural Network.
+Supports tree-based classical models (Random Forest, Extra Trees, Hist
+Gradient Boosting) with the fast TreeExplainer. sklearn's plain
+GradientBoostingClassifier is a special case: SHAP's TreeExplainer only
+supports it for BINARY classification, so when it wins (5-class problem),
+we automatically fall back to a model-agnostic explainer built from
+predict_proba. The TensorFlow Neural Network also uses a model-agnostic
+KernelExplainer.
 """
 
 import numpy as np
@@ -26,8 +30,8 @@ from src.utils import (
 SHAP_SUMMARY_PATH = FIGURE_DIR / "shap_summary.png"
 SHAP_BAR_PATH = FIGURE_DIR / "shap_feature_importance.png"
 
-# KernelExplainer is O(n_samples * n_features) and slow, so we cap the
-# background/explain sample sizes for the Neural Network fallback path.
+# KernelExplainer / generic Explainer cost scales with sample size, so we
+# cap background/explain sample sizes for the non-tree fallback paths.
 MAX_BACKGROUND_SAMPLES = 100
 MAX_EXPLAIN_SAMPLES = 200
 
@@ -47,14 +51,19 @@ class ModelExplainer:
             self.scaler = None
 
         # Classical models are saved as a SMOTE + classifier imblearn
-        # Pipeline (see train.py). shap.TreeExplainer needs the raw tree
-        # estimator, not the pipeline wrapper — self.model is still used
-        # for .predict()/.predict_proba() calls (SMOTE is a no-op there),
-        # self.tree_model is only for SHAP's internal tree inspection.
+        # Pipeline (see train.py). SHAP needs the raw estimator, not the
+        # pipeline wrapper — self.model is still used for
+        # .predict()/.predict_proba() calls (SMOTE is a no-op there),
+        # self.tree_model is only for SHAP's internal model inspection.
         if not self.is_nn and hasattr(self.model, "named_steps"):
             self.tree_model = self.model.named_steps["clf"]
         else:
             self.tree_model = self.model
+
+        # Determined the first time an explainer is built: "tree" (fast,
+        # exact TreeExplainer) or "generic" (predict_proba-based fallback,
+        # needed for e.g. multiclass GradientBoostingClassifier).
+        self._explainer_kind = None
 
     # --------------------------------------------------
     # Build the right SHAP explainer for the winning model
@@ -62,11 +71,26 @@ class ModelExplainer:
     def _build_explainer(self):
 
         if not self.is_nn:
-            # TreeExplainer is fast and exact for RandomForest / GradientBoosting.
-            explainer = shap.TreeExplainer(self.tree_model)
-            X_sample = self.X.sample(
-                min(len(self.X), 500), random_state=42
-            )
+            try:
+                explainer = shap.TreeExplainer(self.tree_model)
+                self._explainer_kind = "tree"
+                sample_size = 500
+            except Exception as e:
+                # e.g. "GradientBoostingClassifier is only supported for
+                # binary classification right now!" — fall back to a
+                # model-agnostic explainer that works with any classifier.
+                print(
+                    f"  [!] TreeExplainer not supported for {self.model_name} "
+                    f"({e}). Falling back to a model-agnostic explainer."
+                )
+                background = shap.sample(
+                    self.X, min(len(self.X), MAX_BACKGROUND_SAMPLES), random_state=42
+                )
+                explainer = shap.Explainer(self.tree_model.predict_proba, background)
+                self._explainer_kind = "generic"
+                sample_size = MAX_EXPLAIN_SAMPLES
+
+            X_sample = self.X.sample(min(len(self.X), sample_size), random_state=42)
             return explainer, X_sample
 
         # Neural Network: model-agnostic KernelExplainer on scaled data.
@@ -94,7 +118,17 @@ class ModelExplainer:
 
         if not self.is_nn:
             explainer, X_sample = self._build_explainer()
-            shap_values = explainer.shap_values(X_sample)
+
+            if self._explainer_kind == "tree":
+                shap_values = explainer.shap_values(X_sample)
+            else:
+                # shap.Explainer's generic algorithm returns an Explanation
+                # object; .values has shape (n_samples, n_features,
+                # n_classes) for multiclass predict_proba functions.
+                explanation = explainer(X_sample)
+                values = explanation.values
+                shap_values = [values[:, :, c] for c in range(values.shape[2])]
+
             return shap_values, X_sample
 
         explainer, X_sample_scaled, X_sample = self._build_explainer()
@@ -144,18 +178,30 @@ class ModelExplainer:
         """
 
         if not self.is_nn:
-            explainer = shap.TreeExplainer(self.tree_model)
-            shap_values = explainer.shap_values(feature_row)
             # self.model (the full SMOTE+classifier pipeline) is used for
             # the actual prediction — SMOTE is a no-op outside of .fit().
             predicted_class = int(self.model.predict(feature_row)[0])
 
-            # shap_values shape depends on sklearn/shap version:
-            # list-of-arrays (per class) or a single 3D array.
-            if isinstance(shap_values, list):
-                values = shap_values[predicted_class][0]
-            else:
-                values = shap_values[0, :, predicted_class]
+            try:
+                explainer = shap.TreeExplainer(self.tree_model)
+                shap_values = explainer.shap_values(feature_row)
+
+                # shap_values shape depends on sklearn/shap version:
+                # list-of-arrays (per class) or a single 3D array.
+                if isinstance(shap_values, list):
+                    values = shap_values[predicted_class][0]
+                else:
+                    values = shap_values[0, :, predicted_class]
+
+            except Exception:
+                # Same fallback as the global explainer, for models like
+                # multiclass GradientBoostingClassifier.
+                background = shap.sample(
+                    self.X, min(len(self.X), MAX_BACKGROUND_SAMPLES), random_state=42
+                )
+                explainer = shap.Explainer(self.tree_model.predict_proba, background)
+                explanation = explainer(feature_row)
+                values = explanation.values[0, :, predicted_class]
 
         else:
             background = shap.sample(
