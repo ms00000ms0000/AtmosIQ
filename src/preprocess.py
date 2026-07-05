@@ -60,7 +60,13 @@ class DataPreprocessor:
 
     def convert_date(self, df):
 
-        df["date"] = pd.to_datetime(df["date"])
+        # Raw dates can arrive in inconsistent formats (e.g. ISO
+        # "2012-01-13" mixed with day-first "13-01-2012"). A plain
+        # pd.to_datetime() infers ONE format from the first rows and then
+        # crashes the moment a later row doesn't match it. format="mixed"
+        # lets pandas infer the format per-row, and dayfirst=True resolves
+        # ambiguous cases like "01-02-2012" as 1 Feb rather than Jan 2nd.
+        df["date"] = pd.to_datetime(df["date"], format="mixed", dayfirst=True)
 
         df.sort_values("date", inplace=True)
 

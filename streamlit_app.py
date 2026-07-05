@@ -190,9 +190,14 @@ if page == "🏠 Overview":
             unsafe_allow_html=True,
         )
     with col2:
-        best_row = comparison.sort_values("Accuracy", ascending=False).iloc[0]
+        # The Neural Network has no CV score (NaN) since it's a documented
+        # baseline, not a CV-eligible candidate — na_position="last" keeps
+        # it out of contention here, matching train.py's actual selection.
+        best_row = comparison.sort_values(
+            "CV F1-Macro (mean)", ascending=False, na_position="last"
+        ).iloc[0]
         st.markdown(
-            f'<div class="metric-card"><h2>{best_row["Accuracy"]:.1%}</h2>'
+            f'<div class="metric-card"><h2>{best_row["Test Accuracy"]:.1%}</h2>'
             f'<p>Best Model: {best_row["Model"]}</p></div>',
             unsafe_allow_html=True,
         )
@@ -263,7 +268,7 @@ elif page == "📊 EDA Dashboard":
                 text="count",
             )
             fig.update_layout(showlegend=False)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         with col2:
             numeric_cols = [
@@ -277,7 +282,7 @@ elif page == "📊 EDA Dashboard":
                 color_continuous_scale="Blues",
                 title="Correlation Heatmap",
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     with tab2:
         col1, col2 = st.columns(2)
@@ -291,7 +296,7 @@ elif page == "📊 EDA Dashboard":
                 title="Maximum Temperature Distribution",
                 color_discrete_sequence=["#2563eb"],
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         with col2:
             fig = px.histogram(
@@ -302,7 +307,7 @@ elif page == "📊 EDA Dashboard":
                 title="Wind Speed Distribution",
                 color_discrete_sequence=["#06b6d4"],
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         fig = px.box(
             df_display,
@@ -312,7 +317,7 @@ elif page == "📊 EDA Dashboard":
             title="Precipitation by Weather Type",
         )
         fig.update_layout(showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with tab3:
         monthly = df_display.groupby("month")["temp_max"].mean().reset_index()
@@ -323,7 +328,7 @@ elif page == "📊 EDA Dashboard":
             markers=True,
             title="Average Monthly Maximum Temperature",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         season_counts = (
             df_display.groupby(["season", "weather"])
@@ -338,7 +343,7 @@ elif page == "📊 EDA Dashboard":
             title="Weather Type by Season (encoded season index)",
             barmode="stack",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with st.expander("View static EDA report figures (saved during pipeline run)"):
         figs = sorted(FIGURE_DIR.glob("*.png"))
@@ -357,20 +362,39 @@ elif page == "📊 EDA Dashboard":
 elif page == "🤖 Model Comparison":
 
     st.header("🤖 Model Comparison")
+    st.caption(
+        "Models are ranked by mean 5-fold cross-validated macro-F1 — this "
+        "is more robust than a single train/test split on a dataset this "
+        "small, and macro-F1 (vs. plain accuracy) prevents the ranking from "
+        "hiding poor performance on minority weather classes like snow."
+    )
 
-    comparison = get_model_comparison().sort_values("Accuracy", ascending=False)
+    raw_comparison = get_model_comparison()
+
+    # Neural Network has no CV score (NaN) — it's a documented baseline,
+    # not a candidate for the "best model" title. na_position keeps it at
+    # the bottom of the CV-ranked table without erroring on the NaN.
+    comparison = raw_comparison.sort_values(
+        "CV F1-Macro (mean)", ascending=False, na_position="last"
+    )
 
     st.dataframe(
         comparison.style.format(
             {
-                "Accuracy": "{:.2%}",
-                "Precision": "{:.2%}",
-                "Recall": "{:.2%}",
-                "F1 Score": "{:.2%}",
+                "CV Accuracy (mean)": "{:.2%}",
+                "CV Accuracy (std)": "±{:.3f}",
+                "CV F1-Macro (mean)": "{:.2%}",
+                "CV F1-Macro (std)": "±{:.3f}",
+                "Test Accuracy": "{:.2%}",
+                "Test Precision": "{:.2%}",
+                "Test Recall": "{:.2%}",
+                "Test F1 (weighted)": "{:.2%}",
+                "Test F1 (macro)": "{:.2%}",
                 "Training Time (s)": "{:.2f}s",
-            }
-        ).background_gradient(cmap="Blues", subset=["Accuracy"]),
-        use_container_width=True,
+            },
+            na_rep="—",
+        ).background_gradient(cmap="Blues", subset=["CV F1-Macro (mean)"]),
+        width="stretch",
     )
 
     col1, col2 = st.columns(2)
@@ -379,29 +403,32 @@ elif page == "🤖 Model Comparison":
         fig = px.bar(
             comparison,
             x="Model",
-            y=["Accuracy", "Precision", "Recall", "F1 Score"],
+            y=["Test Accuracy", "Test F1 (weighted)", "Test F1 (macro)"],
             barmode="group",
-            title="Metric Comparison Across Models",
+            title="Test-Set Metrics Across Models",
         )
         fig.update_layout(yaxis_tickformat=".0%")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with col2:
+        cv_only = comparison.dropna(subset=["CV F1-Macro (mean)"])
         fig = px.bar(
-            comparison,
+            cv_only,
             x="Model",
-            y="Training Time (s)",
-            title="Training Time by Model",
+            y="CV F1-Macro (mean)",
+            error_y="CV F1-Macro (std)",
+            title="5-Fold CV Macro-F1 (± std) — Selection Metric",
             color="Model",
         )
-        fig.update_layout(showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
+        fig.update_layout(showlegend=False, yaxis_tickformat=".0%")
+        st.plotly_chart(fig, width="stretch")
 
     best_row = comparison.iloc[0]
     st.success(
         f"🏆 **{best_row['Model']}** is the current champion with "
-        f"**{best_row['Accuracy']:.2%}** accuracy — this is the model used "
-        "for live predictions."
+        f"**{best_row['CV F1-Macro (mean)']:.2%}** mean CV macro-F1 "
+        f"(test accuracy: {best_row['Test Accuracy']:.2%}) — this is the "
+        "model used for live predictions."
     )
 
 
@@ -443,7 +470,7 @@ elif page == "🔮 Make a Prediction":
                 value=10.0, step=0.5,
             )
 
-        submitted = st.form_submit_button("Predict Weather", use_container_width=True)
+        submitted = st.form_submit_button("Predict Weather", width="stretch")
 
     if submitted:
         if temp_min > temp_max:
@@ -500,7 +527,7 @@ elif page == "🔮 Make a Prediction":
                 color_continuous_scale="Blues",
             )
             fig.update_layout(xaxis_tickformat=".0%", coloraxis_showscale=False)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         report_lines = [
             "AtmosIQ Prediction Report",
@@ -528,7 +555,7 @@ elif page == "🔮 Make a Prediction":
             data="\n".join(report_lines),
             file_name="atmosiq_prediction_report.txt",
             mime="text/plain",
-            use_container_width=True,
+            width="stretch",
         )
 
 
@@ -549,7 +576,7 @@ elif page == "🧠 Explainability":
     tab1, tab2 = st.tabs(["Global Feature Importance", "Explain My Last Prediction"])
 
     with tab1:
-        if st.button("Generate / Refresh Global SHAP Summary", use_container_width=True):
+        if st.button("Generate / Refresh Global SHAP Summary", width="stretch"):
             with st.spinner("Computing SHAP values — this can take a moment..."):
                 explainer.plot_global_summary()
 
@@ -557,7 +584,7 @@ elif page == "🧠 Explainability":
             st.image(
                 str(SHAP_BAR_PATH),
                 caption=f"Global feature importance — {explainer.model_name}",
-                use_container_width=True,
+                width="stretch",
             )
         else:
             st.info("Click the button above to generate the SHAP summary plot.")
@@ -578,7 +605,7 @@ elif page == "🧠 Explainability":
                 f"you last submitted."
             )
 
-            if st.button("Explain This Prediction", use_container_width=True):
+            if st.button("Explain This Prediction", width="stretch"):
                 with st.spinner("Computing local SHAP explanation..."):
                     row = build_feature_row(
                         date=inputs["date"],
@@ -606,7 +633,7 @@ elif page == "🧠 Explainability":
                     title=f"Why the model predicted '{result['label']}'",
                 )
                 fig.update_layout(coloraxis_showscale=False)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
                 st.caption(
                     "Positive bars push the prediction toward the predicted "
@@ -632,7 +659,7 @@ elif page == "🗂️ Prediction History":
         col1, col2 = st.columns([2, 1])
 
         with col1:
-            st.dataframe(history, use_container_width=True, hide_index=True)
+            st.dataframe(history, width="stretch", hide_index=True)
 
         with col2:
             counts = history["prediction"].value_counts().reset_index()
@@ -644,7 +671,7 @@ elif page == "🗂️ Prediction History":
                 title="Prediction Breakdown",
                 hole=0.45,
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         avg_confidence = history["confidence"].mean()
         st.metric("Average Confidence Across All Predictions", f"{avg_confidence:.1%}")
@@ -654,5 +681,5 @@ elif page == "🗂️ Prediction History":
             data=history.to_csv(index=False),
             file_name="atmosiq_prediction_history.csv",
             mime="text/csv",
-            use_container_width=True,
+            width="stretch",
         )
