@@ -46,6 +46,16 @@ class ModelExplainer:
         else:
             self.scaler = None
 
+        # Classical models are saved as a SMOTE + classifier imblearn
+        # Pipeline (see train.py). shap.TreeExplainer needs the raw tree
+        # estimator, not the pipeline wrapper — self.model is still used
+        # for .predict()/.predict_proba() calls (SMOTE is a no-op there),
+        # self.tree_model is only for SHAP's internal tree inspection.
+        if not self.is_nn and hasattr(self.model, "named_steps"):
+            self.tree_model = self.model.named_steps["clf"]
+        else:
+            self.tree_model = self.model
+
     # --------------------------------------------------
     # Build the right SHAP explainer for the winning model
     # --------------------------------------------------
@@ -53,7 +63,7 @@ class ModelExplainer:
 
         if not self.is_nn:
             # TreeExplainer is fast and exact for RandomForest / GradientBoosting.
-            explainer = shap.TreeExplainer(self.model)
+            explainer = shap.TreeExplainer(self.tree_model)
             X_sample = self.X.sample(
                 min(len(self.X), 500), random_state=42
             )
@@ -134,8 +144,10 @@ class ModelExplainer:
         """
 
         if not self.is_nn:
-            explainer = shap.TreeExplainer(self.model)
+            explainer = shap.TreeExplainer(self.tree_model)
             shap_values = explainer.shap_values(feature_row)
+            # self.model (the full SMOTE+classifier pipeline) is used for
+            # the actual prediction — SMOTE is a no-op outside of .fit().
             predicted_class = int(self.model.predict(feature_row)[0])
 
             # shap_values shape depends on sklearn/shap version:

@@ -222,7 +222,7 @@ if page == "🏠 Overview":
   run / prediction is logged for full traceability.
 - **Advanced feature engineering** — cyclic month encodings, seasonal
   buckets, temperature range & average, calendar features.
-- **Three trained models** — Random Forest, Gradient Boosting, and a
+- **Five trained models** — Random Forest, Gradient Boosting, Hist Gradient Boosting, Extra Trees and a
   TensorFlow Neural Network, auto-compared and the best one promoted.
 - **Explainable AI** — SHAP tells you *why* a prediction was made, not just
   what it was.
