@@ -5,38 +5,40 @@ Model Training Engine for AtmosIQ.
 
 Methodology notes (why this file looks the way it does):
 
-1. The dataset is small (1461 rows) and imbalanced across weather classes
-   (e.g. 'snow' is only 26 rows vs 'rain'/'sun' at ~640 each). A single
-   80/20 train-test split on data this size is noisy — whichever 292 rows
-   land in the test set has an outsized effect on the reported score. So
-   every classical model is compared using Stratified K-Fold Cross-
-   Validation (5 folds), and the model with the best *mean* performance
-   across folds is trusted, not the model that got lucky on one split.
+1. The dataset is small (1461 rows) and severely imbalanced across weather
+   classes: rain=641, sun=640, fog=101, drizzle=53, snow=26. Left alone,
+   every model learns to just predict rain/sun and barely ever predicts
+   snow/drizzle/fog — accuracy looks fine because those two classes
+   dominate the data, but the model is nearly useless for the minority
+   weather types.
 
-2. Macro-F1 (unweighted average of per-class F1) is used as the primary
-   selection metric instead of raw accuracy. With 'rain' and 'sun' making
-   up ~88% of the data, a model can hit high accuracy while completely
-   ignoring 'snow' or 'drizzle' — macro-F1 penalizes that.
+2. SMOTE (Synthetic Minority Over-sampling Technique) is used to fix this
+   at the data level: it generates synthetic examples of the minority
+   classes (interpolating between real neighbors) until every class has
+   as many training examples as the majority class. This is a stronger
+   fix than class_weight='balanced' — class weighting only reweights the
+   loss function, it doesn't give the model more actual examples of what
+   snow/drizzle look like to learn from.
 
-3. Five models are compared on purpose, not just one "obvious winner":
-     - Random Forest        (bagged trees, class_weight='balanced')
-     - Extra Trees          (more randomized bagged trees, often
-                              generalizes better than RF on small/noisy
-                              tabular data, class_weight='balanced')
-     - Gradient Boosting    (classic boosting, balanced via sample_weight)
-     - HistGradient Boosting(sklearn's modern, faster boosting
-                              implementation, class_weight='balanced')
-     - Neural Network       (kept as a documented baseline — see note below)
-   The point isn't to always crown the same "favorite" model; it's to
-   demonstrate an honest, reproducible comparison and let the numbers
-   decide. Whichever model wins the mean CV macro-F1 is promoted.
+3. SMOTE is applied INSIDE each cross-validation fold (via an imblearn
+   Pipeline), never before the train/test split or before the CV split.
+   Oversampling before splitting would leak synthetic-derived information
+   between folds/test set and produce misleadingly optimistic scores.
+   With an imblearn Pipeline, cross_validate() and the final .fit() both
+   correctly resample only the training portion each time; the held-out
+   test set and validation folds always stay untouched, real data.
 
-4. The Neural Network is NOT put through 5-fold CV (retraining a network
-   5x per run is expensive) and is not eligible to "win" the comparison.
-   On a dataset this size, tree ensembles are expected to outperform deep
-   learning — this is a well-known result for small/medium tabular data,
-   not a bug — so its purpose here is to demonstrate that conclusion
-   empirically as a documented baseline, not to compete for production.
+4. A single 80/20 train-test split is still noisy on a dataset this size,
+   so classical models are compared using Stratified 5-Fold Cross-
+   Validation, and macro-F1 (which treats every class equally regardless
+   of size) is the primary selection metric — not raw accuracy, which
+   would still reward a model that ignores snow entirely.
+
+5. Five models are compared: Random Forest, Extra Trees, Gradient
+   Boosting, Hist Gradient Boosting (all wrapped with SMOTE), plus a
+   Neural Network kept as a documented baseline (SMOTE applied once to
+   its training split; not run through 5-fold CV since retraining a
+   network 5x per run is expensive, and it isn't eligible to "win").
 """
 
 import time
@@ -45,9 +47,11 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
+from imblearn.over_sampling import SMOTE
+from imblearn.pipeline import Pipeline as ImbPipeline
+
 from sklearn.model_selection import train_test_split, StratifiedKFold, cross_validate
 from sklearn.preprocessing import StandardScaler
-from sklearn.utils.class_weight import compute_sample_weight
 
 from sklearn.ensemble import (
     RandomForestClassifier,
@@ -87,6 +91,21 @@ from src.config import (
 )
 
 CV_FOLDS = 5
+
+# The smallest class (snow) has only ~26 rows total, and even less inside
+# a single CV fold's training portion. SMOTE's k_neighbors must be smaller
+# than the minority class count in whatever data it's fit on, so a
+# conservative value is used instead of the sklearn default of 5.
+SMOTE_K_NEIGHBORS = 3
+
+
+def make_smote_pipeline(model):
+    """Wrap a classifier so SMOTE oversampling runs only on the training
+    fold during .fit(), and is a no-op during .predict()/.predict_proba()."""
+    return ImbPipeline([
+        ("smote", SMOTE(random_state=RANDOM_STATE, k_neighbors=SMOTE_K_NEIGHBORS)),
+        ("clf", model),
+    ])
 
 
 class ModelTrainer:
@@ -140,20 +159,19 @@ class ModelTrainer:
     # --------------------------------------------------
     # Cross-Validated Evaluation for Sklearn Models
     # --------------------------------------------------
-    def evaluate_sklearn(self, model, name, X_train, X_test, y_train, y_test,
-                          fit_params=None):
+    def evaluate_sklearn(self, pipeline, name, X_train, X_test, y_train, y_test):
         """
-        Runs Stratified K-Fold CV on the training data for a robust
-        performance estimate, then fits the model once on the full
-        training split for the held-out test metrics (used for reporting,
-        SHAP, and as the artifact that gets saved to disk).
+        pipeline : an imblearn Pipeline of [SMOTE, classifier]. SMOTE only
+        activates during .fit()/cross_validate() training folds; it's
+        automatically skipped during .predict()/.predict_proba(), so the
+        held-out test set and CV validation folds are always evaluated on
+        real, untouched data.
         """
-        fit_params = fit_params or {}
 
         cv = StratifiedKFold(n_splits=CV_FOLDS, shuffle=True, random_state=RANDOM_STATE)
 
         cv_results = cross_validate(
-            model,
+            pipeline,
             X_train,
             y_train,
             cv=cv,
@@ -166,19 +184,23 @@ class ModelTrainer:
         cv_f1_macro_mean = cv_results["test_f1_macro"].mean()
         cv_f1_macro_std = cv_results["test_f1_macro"].std()
 
-        # Final fit on the full training split (held-out test metrics,
-        # and this is the fitted model instance that may get saved/served).
+        # Final fit on the full training split (SMOTE resamples only this
+        # training data internally; X_test/y_test are never touched).
         start = time.time()
-        model.fit(X_train, y_train, **fit_params)
+        pipeline.fit(X_train, y_train)
         training_time = round(time.time() - start, 3)
 
-        predictions = model.predict(X_test)
+        predictions = pipeline.predict(X_test)
 
         accuracy = accuracy_score(y_test, predictions)
         precision = precision_score(y_test, predictions, average="weighted", zero_division=0)
         recall = recall_score(y_test, predictions, average="weighted", zero_division=0)
         f1 = f1_score(y_test, predictions, average="weighted", zero_division=0)
         f1_macro = f1_score(y_test, predictions, average="macro", zero_division=0)
+
+        # Per-class recall makes the SMOTE fix visible: are minority
+        # classes (snow, drizzle) actually being predicted now?
+        per_class_recall = recall_score(y_test, predictions, average=None, zero_division=0)
 
         self.results.append({
             "Model": name,
@@ -196,91 +218,67 @@ class ModelTrainer:
 
         self.db.save_model_result(name, accuracy, precision, recall, f1)
 
-        # Model selection is based on mean CV macro-F1, not a single
-        # held-out accuracy number — this is robust to a small, imbalanced
-        # dataset where a single split is noisy and accuracy alone hides
-        # poor performance on minority classes.
         if cv_f1_macro_mean > self.best_score:
             self.best_score = cv_f1_macro_mean
-            self.best_model = model
+            self.best_model = pipeline
             self.best_model_name = name
 
         print(
             f"{name:<25} CV F1-Macro : {cv_f1_macro_mean:.4f} (+/- {cv_f1_macro_std:.4f})"
             f"   |   Test Accuracy : {accuracy:.4f}"
         )
+        print(f"    Per-class recall (drizzle, fog, rain, snow, sun): "
+              f"{np.round(per_class_recall, 3).tolist()}")
 
     # --------------------------------------------------
     # Random Forest
     # --------------------------------------------------
     def train_random_forest(self, X_train, X_test, y_train, y_test):
-        model = RandomForestClassifier(
-            n_estimators=300,
-            random_state=RANDOM_STATE,
-            class_weight="balanced",
-        )
-        self.evaluate_sklearn(model, "Random Forest", X_train, X_test, y_train, y_test)
+        model = RandomForestClassifier(n_estimators=300, random_state=RANDOM_STATE)
+        pipeline = make_smote_pipeline(model)
+        self.evaluate_sklearn(pipeline, "Random Forest", X_train, X_test, y_train, y_test)
 
     # --------------------------------------------------
     # Extra Trees
     # --------------------------------------------------
     def train_extra_trees(self, X_train, X_test, y_train, y_test):
-        """
-        Extremely Randomized Trees: like Random Forest, but both the
-        feature subset AND the split threshold at each node are chosen
-        randomly (RF only randomizes the feature subset). The extra
-        randomness increases bias slightly but often reduces variance
-        more, which tends to help on small, noisy tabular datasets like
-        this one.
-        """
-        model = ExtraTreesClassifier(
-            n_estimators=400,
-            random_state=RANDOM_STATE,
-            class_weight="balanced",
-        )
-        self.evaluate_sklearn(model, "Extra Trees", X_train, X_test, y_train, y_test)
+        model = ExtraTreesClassifier(n_estimators=400, random_state=RANDOM_STATE)
+        pipeline = make_smote_pipeline(model)
+        self.evaluate_sklearn(pipeline, "Extra Trees", X_train, X_test, y_train, y_test)
 
     # --------------------------------------------------
     # Gradient Boosting
     # --------------------------------------------------
     def train_gradient_boosting(self, X_train, X_test, y_train, y_test):
         model = GradientBoostingClassifier(random_state=RANDOM_STATE)
-
-        # GradientBoostingClassifier has no class_weight param, so minority
-        # classes are up-weighted manually via sample_weight instead.
-        sample_weight = compute_sample_weight(class_weight="balanced", y=y_train)
-
-        self.evaluate_sklearn(
-            model, "Gradient Boosting", X_train, X_test, y_train, y_test,
-            fit_params={"sample_weight": sample_weight},
-        )
+        pipeline = make_smote_pipeline(model)
+        self.evaluate_sklearn(pipeline, "Gradient Boosting", X_train, X_test, y_train, y_test)
 
     # --------------------------------------------------
     # Histogram-Based Gradient Boosting
     # --------------------------------------------------
     def train_hist_gradient_boosting(self, X_train, X_test, y_train, y_test):
-        """
-        Scikit-learn's modern, histogram-binned boosting implementation
-        (the same family of algorithm as LightGBM). It's typically faster
-        and often stronger than the classic GradientBoostingClassifier,
-        and it supports class_weight='balanced' natively.
-        """
-        model = HistGradientBoostingClassifier(
-            random_state=RANDOM_STATE,
-            class_weight="balanced",
-            max_iter=300,
-        )
+        model = HistGradientBoostingClassifier(random_state=RANDOM_STATE, max_iter=300)
+        pipeline = make_smote_pipeline(model)
         self.evaluate_sklearn(
-            model, "Hist Gradient Boosting", X_train, X_test, y_train, y_test
+            pipeline, "Hist Gradient Boosting", X_train, X_test, y_train, y_test
         )
 
     # --------------------------------------------------
     # TensorFlow Neural Network
     # --------------------------------------------------
     def train_tensorflow(self, X_train, X_test, y_train, y_test):
+
+        # SMOTE is applied once here (not per-CV-fold — the NN isn't run
+        # through K-Fold CV at all, see module docstring) directly on the
+        # scaled training split, so the network also gets balanced classes
+        # to learn from.
+        smote = SMOTE(random_state=RANDOM_STATE, k_neighbors=SMOTE_K_NEIGHBORS)
+        X_train_res, y_train_res = smote.fit_resample(X_train, y_train)
+
         model = self.build_neural_network(
-            X_train.shape[1],
-            len(pd.unique(y_train)),
+            X_train_res.shape[1],
+            len(pd.unique(y_train_res)),
         )
 
         callbacks = [
@@ -311,8 +309,8 @@ class ModelTrainer:
 
         start = time.time()
         model.fit(
-            X_train,
-            y_train,
+            X_train_res,
+            y_train_res,
             validation_split=VALIDATION_SIZE,
             epochs=150,
             batch_size=32,
@@ -329,10 +327,8 @@ class ModelTrainer:
         recall = recall_score(y_test, predictions, average="weighted", zero_division=0)
         f1 = f1_score(y_test, predictions, average="weighted", zero_division=0)
         f1_macro = f1_score(y_test, predictions, average="macro", zero_division=0)
+        per_class_recall = recall_score(y_test, predictions, average=None, zero_division=0)
 
-        # The NN is deliberately NOT run through K-Fold CV: retraining a
-        # neural net 5x is expensive, and its role here is to serve as a
-        # documented baseline, not to compete for production selection.
         self.results.append({
             "Model": "Neural Network",
             "CV Accuracy (mean)": None,
@@ -349,19 +345,24 @@ class ModelTrainer:
 
         self.db.save_model_result("Neural Network", accuracy, precision, recall, f1)
 
-        # TensorFlow models are saved in their own format, not via joblib.
         model.save(TF_MODEL_PATH)
 
         print(
             f"{'Neural Network':<25} (baseline, no CV)            "
             f"|   Test Accuracy : {accuracy:.4f}"
         )
+        print(f"    Per-class recall (drizzle, fog, rain, snow, sun): "
+              f"{np.round(per_class_recall, 3).tolist()}")
 
     # --------------------------------------------------
     # Train All Models
     # --------------------------------------------------
     def train(self):
         X_train, X_test, y_train, y_test = self.load_data()
+
+        print("Class counts in training split BEFORE SMOTE:")
+        print(y_train.value_counts().sort_index().to_dict())
+        print()
 
         X_train_scaled = self.scaler.fit_transform(X_train)
         X_test_scaled = self.scaler.transform(X_test)
@@ -382,6 +383,10 @@ class ModelTrainer:
     # --------------------------------------------------
     def save_best_model(self):
         if self.best_model is not None:
+            # self.best_model is the full imblearn Pipeline (SMOTE + the
+            # winning classifier). SMOTE is a no-op at prediction time, so
+            # saving/loading the whole pipeline is safe and transparent to
+            # predict.py / explain.py.
             joblib.dump(self.best_model, BEST_MODEL_PATH)
 
             with open(BEST_MODEL_NAME_PATH, "w") as file:
@@ -410,6 +415,7 @@ class ModelTrainer:
     def run(self):
         print("\n========== MODEL TRAINING ==========\n")
         print(f"Using {CV_FOLDS}-fold Stratified Cross-Validation for model selection.")
+        print("Class imbalance fix: SMOTE oversampling (applied inside each fold).")
         print("Selection metric: mean CV macro-F1 (robust to class imbalance).\n")
 
         self.train()
