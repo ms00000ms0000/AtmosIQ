@@ -158,7 +158,7 @@ page = st.sidebar.radio(
 )
 
 st.sidebar.divider()
-st.sidebar.caption("Built with Streamlit · scikit-learn · TensorFlow · SHAP")
+st.sidebar.caption("Built with Streamlit · Scikit-learn · TensorFlow · SHAP")
 
 
 # ======================================================

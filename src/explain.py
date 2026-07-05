@@ -4,7 +4,7 @@ explain.py
 Model explainability for AtmosIQ using SHAP.
 
 Supports tree-based classical models (Random Forest, Extra Trees, Hist
-Gradient Boosting) with the fast TreeExplainer. sklearn's plain
+Gradient Boosting) with the fast TreeExplainer. Sklearn's plain
 GradientBoostingClassifier is a special case: SHAP's TreeExplainer only
 supports it for BINARY classification, so when it wins (5-class problem),
 we automatically fall back to a model-agnostic explainer built from
