@@ -712,108 +712,108 @@ The prediction engine automatically loads:
 - Encoders
 - Scaler
 - Neural Network (if selected)
-- Configuration Files
+- Configuration Files without requiring retraining.
 
-without requiring retraining.
+
 
 ---
 
-# 🧪 Machine Learning Pipeline
+
+
+ # 🧪 Machine Learning Pipeline
 
 The training pipeline consists of multiple modular stages.
 
-### 1. Data Collection
+### 1️⃣ Data Collection
 
 - Historical Weather Dataset
 - Structured CSV Input
 
-↓
+<p align="center">⬇️</p>
 
-### 2. Data Cleaning
+### 2️⃣ Data Cleaning
 
 - Missing Values
 - Invalid Entries
 - Duplicate Removal
 
-↓
+<p align="center">⬇️</p>
 
-### 3. Feature Engineering
+### 3️⃣ Feature Engineering
 
 - Weather Features
 - Season Encoding
 - Numerical Transformations
 
-↓
+<p align="center">⬇️</p>
 
-### 4. Encoding
+### 4️⃣ Encoding
 
 Categorical features are transformed using trained encoders.
 
-Artifacts saved:
+**Artifacts Saved**
 
-- season_encoder.pkl
-- target_encoder.pkl
+- `season_encoder.pkl`
+- `target_encoder.pkl`
 
-↓
+<p align="center">⬇️</p>
 
-### 5. Feature Scaling
+### 5️⃣ Feature Scaling
 
-Numerical variables are normalized using StandardScaler.
+Numerical variables are normalized using **StandardScaler**.
 
-Artifact:
+**Artifact**
 
-```
+```text
 scaler.pkl
 ```
 
-↓
+<p align="center">⬇️</p>
 
-### 6. Train-Test Split
+### 6️⃣ Train-Test Split
 
-Dataset is divided using Stratified Sampling.
+Dataset is divided using **Stratified Sampling**.
 
-↓
+<p align="center">⬇️</p>
 
-### 7. Train Multiple Models
+### 7️⃣ Train Multiple Models
 
-- Gradient Boosting
-- Random Forest
-- Hist Gradient Boosting
-- Extra Trees
-- Neural Network
+- 🌳 Gradient Boosting
+- 🌲 Random Forest
+- 🌿 Hist Gradient Boosting
+- 🌴 Extra Trees
+- 🧠 Neural Network
 
-↓
+<p align="center">⬇️</p>
 
-### 8. Cross Validation
+### 8️⃣ Cross Validation
 
-Each model undergoes
+Each model undergoes:
 
 - Stratified K-Fold
-- 5 folds
-- Average performance calculation
+- 5-Fold Cross Validation
+- Average Performance Calculation
 
-↓
+<p align="center">⬇️</p>
 
-### 9. Performance Evaluation
+### 9️⃣ Performance Evaluation
 
-Metrics include
+Metrics include:
 
 - Accuracy
 - Precision
 - Recall
 - F1 Score
 
-↓
+<p align="center">⬇️</p>
 
-### 10. Best Model Selection
+### 🔟 Best Model Selection
 
-Highest-performing model is automatically selected.
+The highest-performing model is automatically selected for deployment.
 
-↓
+<p align="center">⬇️</p>
 
-### 11. Save Artifacts
-
-Artifacts generated:
+### 1️⃣1️⃣ Save Production Artifacts
 
 ```text
 best_model.pkl
@@ -826,7 +826,10 @@ scaler.pkl
 model_comparison.csv
 ```
 
+
 ---
+
+
 
 # ⚡ Prediction Pipeline
 
