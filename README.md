@@ -720,16 +720,16 @@ The prediction engine automatically loads:
 
 
 
- # 🧪 Machine Learning Pipeline
+# 🧪 Machine Learning Pipeline
 
 The training pipeline consists of multiple modular stages.
-
+ 
 ### 1️⃣ Data Collection
 
 - Historical Weather Dataset
 - Structured CSV Input
 
-<p align="center">⬇️</p>
+⬇️
 
 ### 2️⃣ Data Cleaning
 
@@ -737,7 +737,7 @@ The training pipeline consists of multiple modular stages.
 - Invalid Entries
 - Duplicate Removal
 
-<p align="center">⬇️</p>
+⬇️
 
 ### 3️⃣ Feature Engineering
 
@@ -745,7 +745,7 @@ The training pipeline consists of multiple modular stages.
 - Season Encoding
 - Numerical Transformations
 
-<p align="center">⬇️</p>
+⬇️
 
 ### 4️⃣ Encoding
 
@@ -756,7 +756,7 @@ Categorical features are transformed using trained encoders.
 - `season_encoder.pkl`
 - `target_encoder.pkl`
 
-<p align="center">⬇️</p>
+⬇️
 
 ### 5️⃣ Feature Scaling
 
@@ -768,13 +768,13 @@ Numerical variables are normalized using **StandardScaler**.
 scaler.pkl
 ```
 
-<p align="center">⬇️</p>
+⬇️
 
 ### 6️⃣ Train-Test Split
 
 Dataset is divided using **Stratified Sampling**.
 
-<p align="center">⬇️</p>
+⬇️
 
 ### 7️⃣ Train Multiple Models
 
@@ -784,7 +784,7 @@ Dataset is divided using **Stratified Sampling**.
 - 🌴 Extra Trees
 - 🧠 Neural Network
 
-<p align="center">⬇️</p>
+⬇️
 
 ### 8️⃣ Cross Validation
 
@@ -794,7 +794,7 @@ Each model undergoes:
 - 5-Fold Cross Validation
 - Average Performance Calculation
 
-<p align="center">⬇️</p>
+⬇️
 
 ### 9️⃣ Performance Evaluation
 
@@ -805,13 +805,13 @@ Metrics include:
 - Recall
 - F1 Score
 
-<p align="center">⬇️</p>
+⬇️
 
 ### 🔟 Best Model Selection
 
 The highest-performing model is automatically selected for deployment.
 
-<p align="center">⬇️</p>
+⬇️
 
 ### 1️⃣1️⃣ Save Production Artifacts
 
@@ -825,7 +825,7 @@ target_encoder.pkl
 scaler.pkl
 model_comparison.csv
 ```
-
+ 
 
 ---
 
