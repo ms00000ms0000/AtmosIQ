@@ -251,31 +251,31 @@ This structure improves maintainability, scalability, and readability.
 
 # 🏆 Project Highlights
 
-✅ End-to-End Machine Learning Project
+- End-to-End Machine Learning Project
 
-✅ Production-Inspired Architecture
+- Production-Inspired Architecture
 
-✅ Multi-Model Training
+- Multi-Model Training
 
-✅ Deep Learning Integration
+- Deep Learning Integration
 
-✅ Explainable AI using SHAP
+- Explainable AI using SHAP
 
-✅ SQL Database Support
+- SQL Database Support
 
-✅ 5-Fold Cross Validation
+- 5-Fold Cross Validation
 
-✅ Automatic Best Model Selection
+- Automatic Best Model Selection
 
-✅ Streamlit Deployment
+- Streamlit Deployment
 
-✅ Professional Folder Structure
+- Professional Folder Structure
 
-✅ Saved Production Artifacts
+- Saved Production Artifacts
 
-✅ Modular Python Codebase
+- Modular Python Codebase
 
-✅ Recruiter-Friendly Documentation
+- Recruiter-Friendly Documentation
 
 ---
 
@@ -310,14 +310,10 @@ The final predicted class depends on the trained model and processed weather fea
 # 🏗️ System Architecture
 
 <p align="center">
-
-> Replace the path below with your uploaded architecture image.
-
 ```text
 images/Atmos_Architecture.png
 ```
-
-<img src="images/Atmos_Architecture.png" width="100%">
+<img width="1536" height="1024" alt="Atmos_Architecture" src="https://github.com/user-attachments/assets/794795ea-2488-49e8-b188-1a5645651444" >
 
 </p>
 
@@ -327,25 +323,33 @@ The complete architecture illustrates the end-to-end flow of the system, beginni
 
 # 📸 Project Screenshots
 
-> Replace the image paths below with your uploaded screenshots.
 
 ## 🏠 Home Page
 
 ```text
 screenshots/home.png
 ```
+<p align="center">
+<img width="1358" height="601" alt="atmos_overview" src="https://github.com/user-attachments/assets/7babaa11-6375-4ab0-86f8-250590903856">
+</p>
+---
 
 ## 📊 Dashboard
 
 ```text
 screenshots/dashboard.png
 ```
+<p align="center">
+<img width="1350" height="601" alt="atmos_EDA" src="https://github.com/user-attachments/assets/270366dc-4eeb-47a9-b2f2-37ca9facbcc3" />
+</p>
+---
 
 ## 🤖 Prediction
 
 ```text
 screenshots/prediction.png
 ```
+
 
 ## 📈 Model Comparison
 
