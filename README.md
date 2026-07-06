@@ -310,11 +310,7 @@ The final predicted class depends on the trained model and processed weather fea
 # 🏗️ System Architecture
 
 <p align="center">
-```text
-images/Atmos_Architecture.png
-```
-<img width="1536" height="1024" alt="Atmos_Architecture" src="https://github.com/user-attachments/assets/794795ea-2488-49e8-b188-1a5645651444" >
-
+ <img width="1536" height="1024" alt="Atmos_Architecture" src="https://github.com/user-attachments/assets/794795ea-2488-49e8-b188-1a5645651444" >
 </p>
 
 The complete architecture illustrates the end-to-end flow of the system, beginning with raw weather data ingestion, followed by preprocessing, feature engineering, model training, explainability, database operations, prediction services, and deployment through Streamlit.
@@ -326,45 +322,58 @@ The complete architecture illustrates the end-to-end flow of the system, beginni
 
 ## 🏠 Home Page
 
-```text
-screenshots/home.png
-```
-<p align="center">
+ <p align="center">
 <img width="1358" height="601" alt="atmos_overview" src="https://github.com/user-attachments/assets/7babaa11-6375-4ab0-86f8-250590903856">
 </p>
 ---
 
-## 📊 Dashboard
+## 📊  EDA Dashboard
 
-```text
-screenshots/dashboard.png
-```
 <p align="center">
-<img width="1350" height="601" alt="atmos_EDA" src="https://github.com/user-attachments/assets/270366dc-4eeb-47a9-b2f2-37ca9facbcc3" />
+<img width="1350" height="601" alt="atmos_EDA" src="https://github.com/user-attachments/assets/270366dc-4eeb-47a9-b2f2-37ca9facbcc3">
 </p>
 ---
 
 ## 🤖 Prediction
 
-```text
-screenshots/prediction.png
-```
+<p align="center">
+<img width="1342" height="563" alt="atmos_prediction-1" src="https://github.com/user-attachments/assets/346afe73-76e8-483c-87d6-38cc2ab76f56" >
+</p>
+---
+<p align="center">
+<img width="1345" height="558" alt="atmos_prediction-2" src="https://github.com/user-attachments/assets/7499525a-8f7e-4a70-b95f-8e1f47bf3f80">
+</p>
+---
 
 
 ## 📈 Model Comparison
 
-```text
-screenshots/model_comparison.png
-```
+<p align="center">
+<img width="1351" height="499" alt="atmos_comparison-1" src="https://github.com/user-attachments/assets/d9783a74-f889-414f-95ed-0c5e00645073">
+</p>
+---
+<p align="center">
+<img width="1364" height="606" alt="atmos_comparison-2" src="https://github.com/user-attachments/assets/304112f9-bdeb-4279-b95c-1946f7fbe45f" />
+
+</p>
+---
 
 ## 📉 SHAP Explainability
 
-```text
-screenshots/shap.png
-```
-
+ <p align="center">
+ <img width="1347" height="610" alt="atmos_explain-1" src="https://github.com/user-attachments/assets/2ec57559-aa8e-4d1f-984d-64172c2b83cb" >
+</p>
+---
+<p align="center">
+<img width="1342" height="607" alt="atmos_explain-2" src="https://github.com/user-attachments/assets/0f996af2-e2d0-4c58-a8a8-388003471d8d" >
+</p>
 ---
 
+## 📚 Prediction History
+
+<p align="center">
+<img width="1353" height="547" alt="atmos_prediction_history" src="https://github.com/user-attachments/assets/d25b9e63-8bd2-4d87-b1f5-ebbdcdba4edb" >
+</p>
 ---
 
 # 🛠️ Technology Stack
