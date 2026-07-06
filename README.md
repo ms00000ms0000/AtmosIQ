@@ -729,7 +729,7 @@ The training pipeline consists of multiple modular stages.
 - Historical Weather Dataset
 - Structured CSV Input
 
-⬇️
+
 
 ### 2️⃣ Data Cleaning
 
@@ -737,7 +737,7 @@ The training pipeline consists of multiple modular stages.
 - Invalid Entries
 - Duplicate Removal
 
-⬇️
+
 
 ### 3️⃣ Feature Engineering
 
@@ -745,7 +745,7 @@ The training pipeline consists of multiple modular stages.
 - Season Encoding
 - Numerical Transformations
 
-⬇️
+
 
 ### 4️⃣ Encoding
 
@@ -756,7 +756,7 @@ Categorical features are transformed using trained encoders.
 - `season_encoder.pkl`
 - `target_encoder.pkl`
 
-⬇️
+
 
 ### 5️⃣ Feature Scaling
 
@@ -768,13 +768,13 @@ Numerical variables are normalized using **StandardScaler**.
 scaler.pkl
 ```
 
-⬇️
+
 
 ### 6️⃣ Train-Test Split
 
 Dataset is divided using **Stratified Sampling**.
 
-⬇️
+
 
 ### 7️⃣ Train Multiple Models
 
@@ -784,7 +784,7 @@ Dataset is divided using **Stratified Sampling**.
 - 🌴 Extra Trees
 - 🧠 Neural Network
 
-⬇️
+
 
 ### 8️⃣ Cross Validation
 
@@ -794,7 +794,7 @@ Each model undergoes:
 - 5-Fold Cross Validation
 - Average Performance Calculation
 
-⬇️
+
 
 ### 9️⃣ Performance Evaluation
 
@@ -805,13 +805,13 @@ Metrics include:
 - Recall
 - F1 Score
 
-⬇️
+
 
 ### 🔟 Best Model Selection
 
 The highest-performing model is automatically selected for deployment.
 
-⬇️
+
 
 ### 1️⃣1️⃣ Save Production Artifacts
 
