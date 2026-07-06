@@ -809,7 +809,8 @@ Metrics include:
 
 ### 🔟 Best Model Selection
 
-The highest-performing model is automatically selected for deployment.
+The highest-performing model is automatically selected based on comprehensive evaluation metrics, including Accuracy, Precision, Recall, F1 Score, and 5-Fold Cross Validation results. The selected model is saved and deployed for efficient, reliable, and production-ready weather predictions.
+ 
 
 
 
